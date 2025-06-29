@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Terraverra priject ia 
 
 
@@ -167,3 +168,6 @@ To connect a domain, navigate to Project > Settings > Domains and click Connect 
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
 >>>>>>> 1a09f7e (first commit)
+=======
+
+>>>>>>> 5607160 (Update README.md)
