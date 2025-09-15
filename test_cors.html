@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px; margin: 5px; }
+        #result { margin-top: 20px; white-space: pre-wrap; border: 1px solid #ccc; padding: 10px; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>API Connection Test</h1>
+    
+    <button onclick="testConnection()">Test API Connection</button>
+    <button onclick="testUpload()">Test Image Upload</button>
+    <button onclick="testWithForm()">Test With Form</button>
+    
+    <div id="result"></div>
+
+    <!-- Hidden form for direct upload -->
+    <form id="uploadForm" action="http://localhost:8889/predict" method="post" enctype="multipart/form-data" target="resultFrame" style="display:none;">
+        <input type="file" name="image" id="fileInput">
+        <input type="submit" value="Submit">
+    </form>
+    <iframe name="resultFrame" id="resultFrame" style="display:none;"></iframe>
+
+    <script>
+        async function testConnection() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = "Testing connection to http://localhost:8889...";
+            
+            try {
+                // Use XMLHttpRequest instead of fetch
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', 'http://localhost:8889/', true);
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        try {
+                            const data = JSON.parse(xhr.responseText);
+                            resultDiv.innerHTML = `<div class="success">✅ Connection successful!</div>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                        } catch (e) {
+                            resultDiv.innerHTML = `<div class="error">❌ Error parsing response: ${e.message}</div>
+                                <pre>${xhr.responseText}</pre>`;
+                        }
+                    } else {
+                        resultDiv.innerHTML = `<div class="error">❌ Error: ${xhr.status} ${xhr.statusText}</div>`;
+                    }
+                };
+                xhr.onerror = function() {
+                    resultDiv.innerHTML = `<div class="error">❌ Failed to connect: Network error</div>
+                        <p>Possible reasons:</p>
+                        <ul>
+                            <li>Proxy server is not running</li>
+                            <li>Network issue or firewall blocking the connection</li>
+                        </ul>`;
+                };
+                xhr.send();
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Failed to connect: ${error.message}</div>
+                    <p>Possible reasons:</p>
+                    <ul>
+                        <li>Proxy server is not running</li>
+                        <li>Network issue or firewall blocking the connection</li>
+                    </ul>`;
+            }
+        }
+
+        async function testUpload() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = "Creating test image and uploading to http://localhost:8889/predict...";
+            
+            try {
+                // Create a canvas with a simple image
+                const canvas = document.createElement('canvas');
+                canvas.width = 224;
+                canvas.height = 224;
+                const ctx = canvas.getContext('2d');
+                
+                // Green background
+                ctx.fillStyle = 'green';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Add yellow spots
+                ctx.fillStyle = 'yellow';
+                for (let i = 0; i < 10; i++) {
+                    const x = Math.random() * 200 + 12;
+                    const y = Math.random() * 200 + 12;
+                    const radius = Math.random() * 10 + 5;
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // Convert to blob
+                canvas.toBlob(async (blob) => {
+                    const formData = new FormData();
+                    formData.append('image', blob, 'test_image.jpg');
+                    
+                    // Use XMLHttpRequest instead of fetch
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', 'http://localhost:8889/predict', true);
+                    xhr.onload = function() {
+                        if (xhr.status === 200) {
+                            try {
+                                const data = JSON.parse(xhr.responseText);
+                                resultDiv.innerHTML = `<div class="success">✅ Upload successful!</div>
+                                    <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                            } catch (e) {
+                                resultDiv.innerHTML = `<div class="error">❌ Error parsing response: ${e.message}</div>
+                                    <pre>${xhr.responseText}</pre>`;
+                            }
+                        } else {
+                            resultDiv.innerHTML = `<div class="error">❌ Error: ${xhr.status} ${xhr.statusText}</div>
+                                <pre>${xhr.responseText}</pre>`;
+                        }
+                    };
+                    xhr.onerror = function() {
+                        resultDiv.innerHTML = `<div class="error">❌ Failed to upload: Network error</div>`;
+                    };
+                    xhr.send(formData);
+                }, 'image/jpeg');
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error creating test image: ${error.message}</div>`;
+            }
+        }
+        
+        function testWithForm() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = "Testing with direct form submission...";
+            
+            // Create a file programmatically
+            const canvas = document.createElement('canvas');
+            canvas.width = 224;
+            canvas.height = 224;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'green';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Convert to blob
+            canvas.toBlob((blob) => {
+                // Create a File object
+                const file = new File([blob], "test_image.jpg", { type: "image/jpeg" });
+                
+                // Create a DataTransfer object to set the file input value
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                
+                // Set the file input value
+                document.getElementById('fileInput').files = dataTransfer.files;
+                
+                // Create a new XHR request instead of using the form
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', 'http://localhost:8889/predict', true);
+                
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        try {
+                            const data = JSON.parse(xhr.responseText);
+                            resultDiv.innerHTML = `<div class="success">✅ Form upload successful!</div>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                        } catch (e) {
+                            resultDiv.innerHTML = `<div class="error">❌ Error parsing response: ${e.message}</div>
+                                <pre>${xhr.responseText}</pre>`;
+                        }
+                    } else {
+                        resultDiv.innerHTML = `<div class="error">❌ Error: ${xhr.status} ${xhr.statusText}</div>
+                            <pre>${xhr.responseText}</pre>`;
+                    }
+                };
+                
+                xhr.onerror = function() {
+                    resultDiv.innerHTML = `<div class="error">❌ Failed to upload: Network error</div>
+                        <p>Possible reasons:</p>
+                        <ul>
+                            <li>Proxy server is not running</li>
+                            <li>Network issue or firewall blocking the connection</li>
+                        </ul>`;
+                };
+                
+                // Create FormData and append the file
+                const formData = new FormData();
+                formData.append('image', file);
+                
+                // Send the request
+                xhr.send(formData);
+                
+            }, 'image/jpeg');
+        }
+    </script>
+</body>
+</html> 

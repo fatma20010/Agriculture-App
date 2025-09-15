@@ -1,0 +1,2860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plant & Grass Health Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade { animation: fadeIn 0.3s ease-out; }
+        .animate-slideIn { animation: slideIn 0.3s ease-out; }
+        .animate-slideUp { animation: slideUp 0.5s ease-out; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Utility Functions
+        const storage = {
+            get: (key) => JSON.parse(localStorage.getItem(key) || '[]'),
+            set: (key, value) => localStorage.setItem(key, JSON.stringify(value)),
+            getUser: () => JSON.parse(localStorage.getItem('currentUser') || 'null'),
+            setUser: (user) => localStorage.setItem('currentUser', JSON.stringify(user))
+        };
+
+        const isAdmin = (username) => username && username.startsWith('admin_');
+
+        // Loading Component
+        const LoadingSpinner = () => (
+            <div className="flex justify-center items-center p-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+            </div>
+        );
+
+        // Chart Component
+        const ChartComponent = ({ data, type = 'line', options = {} }) => {
+            const canvasRef = useRef(null);
+            const chartRef = useRef(null);
+
+            useEffect(() => {
+                if (canvasRef.current) {
+                    if (chartRef.current) {
+                        chartRef.current.destroy();
+                    }
+                    
+                    const ctx = canvasRef.current.getContext('2d');
+                    chartRef.current = new Chart(ctx, {
+                        type,
+                        data,
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            },
+                            ...options
+                        }
+                    });
+                }
+
+                return () => {
+                    if (chartRef.current) {
+                        chartRef.current.destroy();
+                    }
+                };
+            }, [data, type, options]);
+
+            return <canvas ref={canvasRef} className="animate-slideUp" />;
+        };
+
+        // Authentication Components
+        const LoginPage = ({ onLogin, onShowCreateAccount }) => {
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [isAdminLogin, setIsAdminLogin] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleLogin = () => {
+                if (!username || !password) {
+                    setError('Please fill in all fields');
+                    return;
+                }
+
+                const accounts = storage.get('accounts');
+                const loginUsername = isAdminLogin ? `admin_${username}` : username;
+                const account = accounts.find(acc => acc.username === loginUsername && acc.password === password);
+
+                if (account) {
+                    storage.setUser(account);
+                    onLogin(account);
+                } else {
+                    setError('Invalid credentials');
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 animate-fade">
+                    <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+                        <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
+                            Plant & Grass Health Analysis
+                        </h2>
+                        
+                        {error && (
+                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 animate-fade">
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Username
+                                </label>
+                                <input
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200"
+                                />
+                            </div>
+
+                            <div className="flex items-center">
+                                <input
+                                    type="checkbox"
+                                    id="adminLogin"
+                                    checked={isAdminLogin}
+                                    onChange={(e) => setIsAdminLogin(e.target.checked)}
+                                    className="mr-2"
+                                />
+                                <label htmlFor="adminLogin" className="text-sm text-gray-600">
+                                    Admin Login
+                                </label>
+                            </div>
+
+                            <button
+                                onClick={handleLogin}
+                                className="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                            >
+                                Login
+                            </button>
+
+                            <button
+                                onClick={onShowCreateAccount}
+                                className="w-full text-green-600 hover:text-green-700 text-sm transition-colors duration-200"
+                            >
+                                Create Account
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const CreateAccountPage = ({ onBack }) => {
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [isAdminAccount, setIsAdminAccount] = useState(false);
+            const [message, setMessage] = useState('');
+            const [isSuccess, setIsSuccess] = useState(false);
+
+            const handleCreateAccount = () => {
+                if (!username || !password || !confirmPassword) {
+                    setMessage('Please fill in all fields');
+                    setIsSuccess(false);
+                    return;
+                }
+
+                if (password !== confirmPassword) {
+                    setMessage('Passwords do not match');
+                    setIsSuccess(false);
+                    return;
+                }
+
+                const accounts = storage.get('accounts');
+                const newUsername = isAdminAccount ? `admin_${username}` : username;
+                
+                if (accounts.find(acc => acc.username === newUsername)) {
+                    setMessage('Username already exists');
+                    setIsSuccess(false);
+                    return;
+                }
+
+                const newAccount = {
+                    username: newUsername,
+                    password,
+                    isAdmin: isAdminAccount,
+                    createdAt: new Date().toISOString()
+                };
+
+                accounts.push(newAccount);
+                storage.set('accounts', accounts);
+                
+                setMessage('Account created successfully!');
+                setIsSuccess(true);
+                
+                setTimeout(() => {
+                    onBack();
+                }, 2000);
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 animate-fade">
+                    <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+                        <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
+                            Create Account
+                        </h2>
+                        
+                        {message && (
+                            <div className={`border px-4 py-3 rounded mb-4 animate-fade ${
+                                isSuccess 
+                                    ? 'bg-green-100 border-green-400 text-green-700'
+                                    : 'bg-red-100 border-red-400 text-red-700'
+                            }`}>
+                                {message}
+                            </div>
+                        )}
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Username
+                                </label>
+                                <input
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Confirm Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200"
+                                />
+                            </div>
+
+                            <div className="flex items-center">
+                                <input
+                                    type="checkbox"
+                                    id="adminAccount"
+                                    checked={isAdminAccount}
+                                    onChange={(e) => setIsAdminAccount(e.target.checked)}
+                                    className="mr-2"
+                                />
+                                <label htmlFor="adminAccount" className="text-sm text-gray-600">
+                                    Create Admin Account
+                                </label>
+                            </div>
+
+                            <button
+                                onClick={handleCreateAccount}
+                                className="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                            >
+                                Create Account
+                            </button>
+
+                            <button
+                                onClick={onBack}
+                                className="w-full text-green-600 hover:text-green-700 text-sm transition-colors duration-200"
+                            >
+                                Back to Login
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Client Pages
+        const ClientHome = () => {
+            const [diagnostics, setDiagnostics] = useState([]);
+
+            useEffect(() => {
+                const analyses = storage.get('analyses').slice(-3);
+                setDiagnostics(analyses);
+            }, []);
+
+            const chartData = {
+                labels: diagnostics.map((_, index) => `Analysis ${index + 1}`),
+                datasets: [
+                    {
+                        label: 'Healthy',
+                        data: diagnostics.map(d => d.type === 'plant' ? (d.confidence > 0.7 ? 1 : 0) : (d.healthy_percentage || 0)),
+                        borderColor: 'rgba(16, 185, 129, 0.8)',
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Unhealthy',
+                        data: diagnostics.map(d => d.type === 'plant' ? (d.confidence <= 0.7 ? 1 : 0) : (d.unhealthy_percentage || 0)),
+                        borderColor: 'rgba(239, 68, 68, 0.8)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                        tension: 0.4
+                    }
+                ]
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Welcome to Your Dashboard</h1>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">Latest Diagnostics</h2>
+                            {diagnostics.length > 0 ? (
+                                <div className="space-y-3">
+                                    {diagnostics.map((diagnostic, index) => (
+                                        <div key={index} className="border-l-4 border-green-500 pl-4 animate-slideIn">
+                                            <p className="font-medium">{diagnostic.type === 'plant' ? 'Plant' : 'Grass'} Analysis</p>
+                                            <p className="text-sm text-gray-600">
+                                                {diagnostic.type === 'plant' ? diagnostic.species : 'Grass Health Check'}
+                                            </p>
+                                            <p className="text-xs text-gray-500">{new Date(diagnostic.timestamp).toLocaleDateString()}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-gray-500">No diagnostics yet. Start by scanning a plant!</p>
+                            )}
+                        </div>
+
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">Health Trends</h2>
+                            {diagnostics.length > 0 ? (
+                                <ChartComponent data={chartData} />
+                            ) : (
+                                <p className="text-gray-500">No data available for chart</p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-lg shadow-md animate-fade">
+                        <h2 className="text-xl font-semibold mb-4">Personalized Tips</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-green-50 p-4 rounded-lg">
+                                <h3 className="font-medium text-green-800">Watering Schedule</h3>
+                                <p className="text-sm text-green-700">Water your plants every 3 days during dry season</p>
+                            </div>
+                            <div className="bg-blue-50 p-4 rounded-lg">
+                                <h3 className="font-medium text-blue-800">Fertilization</h3>
+                                <p className="text-sm text-blue-700">Apply compost monthly for optimal growth</p>
+                            </div>
+                            <div className="bg-yellow-50 p-4 rounded-lg">
+                                <h3 className="font-medium text-yellow-800">Pest Control</h3>
+                                <p className="text-sm text-yellow-700">Check for early signs of disease weekly</p>
+                            </div>
+                            <div className="bg-purple-50 p-4 rounded-lg">
+                                <h3 className="font-medium text-purple-800">Soil Health</h3>
+                                <p className="text-sm text-purple-700">Test soil pH every 6 months</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ScanPlant = () => {
+            const [selectedFile, setSelectedFile] = useState(null);
+            const [analysisType, setAnalysisType] = useState('farm');
+            const [loading, setLoading] = useState(false);
+            const [results, setResults] = useState(null);
+            const [error, setError] = useState('');
+
+            const handleFileChange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const validTypes = analysisType === 'farm' 
+                        ? ['image/png', 'image/jpeg', 'image/jpg', 'image/mv2']
+                        : ['image/png', 'image/jpeg', 'image/jpg'];
+                    
+                    if (validTypes.includes(file.type)) {
+                        setSelectedFile(file);
+                        setError('');
+                    } else {
+                        setError('Invalid file type. Please select a valid image.');
+                    }
+                }
+            };
+
+            const handleAnalyze = async () => {
+                if (!selectedFile) {
+                    setError('Please select a file first');
+                    return;
+                }
+
+                setLoading(true);
+                setError('');
+
+                try {
+                    const formData = new FormData();
+                    formData.append('image', selectedFile);
+
+                    const endpoint = analysisType === 'farm' 
+                        ? '/api/predict'
+                        : '/grass-api/analyze_grass';
+
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        setResults(data.results);
+                        
+                        // Save to localStorage
+                        const analyses = storage.get('analyses');
+                        analyses.push({
+                            ...data.results,
+                            type: analysisType === 'farm' ? 'plant' : 'grass',
+                            timestamp: new Date().toISOString()
+                        });
+                        storage.set('analyses', analyses);
+                    } else {
+                        setError('Analysis failed. Please try again.');
+                    }
+                } catch (err) {
+                    setError(`Error: ${err.message}`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleDownloadPDF = async () => {
+                if (!selectedFile) return;
+
+                try {
+                    const formData = new FormData();
+                    formData.append('image', selectedFile);
+
+                    const endpoint = analysisType === 'farm'
+                        ? '/api/generate_report'
+                        : '/grass-api/generate_report';
+
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${analysisType}_report.pdf`;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                    }
+                } catch (err) {
+                    setError('Failed to generate PDF report');
+                }
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Scan Plant</h1>
+                    
+                    <div className="bg-white p-6 rounded-lg shadow-md">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Analysis Type
+                                </label>
+                                <select
+                                    value={analysisType}
+                                    onChange={(e) => setAnalysisType(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                >
+                                    <option value="farm">Farm (Plant Analysis)</option>
+                                    <option value="hotel">Hotel/Stadium (Grass Analysis)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Upload Image
+                                </label>
+                                <input
+                                    type="file"
+                                    onChange={handleFileChange}
+                                    accept={analysisType === 'farm' ? '.png,.jpg,.jpeg,.mv2' : '.png,.jpg,.jpeg'}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                />
+                            </div>
+
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded animate-fade">
+                                    {error}
+                                </div>
+                            )}
+
+                            <button
+                                onClick={handleAnalyze}
+                                disabled={loading || !selectedFile}
+                                className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? 'Analyzing...' : 'Analyze'}
+                            </button>
+                        </div>
+
+                        {loading && <LoadingSpinner />}
+
+                        {results && (
+                            <div className="mt-6 animate-fade">
+                                <h2 className="text-xl font-semibold mb-4">Analysis Results</h2>
+                                
+                                {analysisType === 'farm' ? (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="bg-gray-50 p-4 rounded-lg">
+                                                <h3 className="font-medium mb-2">Plant Information</h3>
+                                                <p><strong>Species:</strong> {results.species}</p>
+                                                <p><strong>Confidence:</strong> {(results.confidence * 100).toFixed(1)}%</p>
+                                                <p><strong>Yellowing:</strong> {results.yellow_percentage}%</p>
+                                                <p><strong>Spot Count:</strong> {results.spot_count}</p>
+                                                <p><strong>Compost Needed:</strong> {results.estimated_compost_grams}g</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            {results.original_image_path && (
+                                                <div className="animate-slideIn">
+                                                    <h4 className="font-medium mb-2">Original Image</h4>
+                                                    <img 
+                                                        src={`/api/images/${results.original_image_path}`}
+                                                        alt="Original"
+                                                        className="w-auto h-48 object-contain rounded-lg mx-auto"
+                                                        onError={(e) => {
+                                                            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIwLjNlbSI+SW1hZ2UgTm90IEZvdW5kPC90ZXh0Pjwvc3ZnPg==';
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+                                            {results.yellowing_mask_path && (
+                                                <div className="animate-slideIn">
+                                                    <h4 className="font-medium mb-2">Yellowing Mask</h4>
+                                                    <img 
+                                                        src={`/api/images/${results.yellowing_mask_path}`}
+                                                        alt="Yellowing Mask"
+                                                        className="w-auto h-48 object-contain rounded-lg mx-auto"
+                                                        onError={(e) => {
+                                                            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIwLjNlbSI+SW1hZ2UgTm90IEZvdW5kPC90ZXh0Pjwvc3ZnPg==';
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+                                            {results.edges_image_path && (
+                                                <div className="animate-slideIn">
+                                                    <h4 className="font-medium mb-2">Edge Detection</h4>
+                                                    <img 
+                                                        src={`/api/images/${results.edges_image_path}`}
+                                                        alt="Edge Detection"
+                                                        className="w-auto h-48 object-contain rounded-lg mx-auto"
+                                                        onError={(e) => {
+                                                            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIwLjNlbSI+SW1hZ2UgTm90IEZvdW5kPC90ZXh0Pjwvc3ZnPg==';
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                        
+                                        <button
+                                            onClick={handleDownloadPDF}
+                                            className="mt-4 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                        >
+                                            Download PDF Report
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="bg-gray-50 p-4 rounded-lg">
+                                                <h3 className="font-medium mb-2">Grass Health Analysis</h3>
+                                                <p><strong>Healthy Regions:</strong> {results.healthy_percentage ? results.healthy_percentage.toFixed(2) + '%' : 'N/A'}</p>
+                                                <p><strong>Unhealthy Regions:</strong> {results.unhealthy_percentage ? results.unhealthy_percentage.toFixed(2) + '%' : 'N/A'}</p>
+                                                <p><strong>Compost Needed:</strong> {results.compost_needed_grams}g</p>
+                                            </div>
+                                            <div className="bg-gray-50 p-4 rounded-lg">
+                                                <h3 className="font-medium mb-2">Analysis Details</h3>
+                                                <p className="text-sm">
+                                                    {Array.isArray(results.analysis_details) ? 
+                                                        results.analysis_details.map((detail, i) => (
+                                                            <span key={i}>
+                                                                {`Region ${detail.label}: ${detail.status}, `}
+                                                                {`Hue: ${detail.mean_hue ? detail.mean_hue.toFixed(1) : 'N/A'}, `}
+                                                                {`Saturation: ${detail.mean_saturation ? detail.mean_saturation.toFixed(1) : 'N/A'}`}
+                                                                <br />
+                                                            </span>
+                                                        ))
+                                                    : 
+                                                        JSON.stringify(results.analysis_details)
+                                                    }
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Analysis images - healthy and unhealthy */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                            {results.healthy_image_path && (
+                                                <div className="animate-slideIn">
+                                                    <h4 className="font-medium mb-2">Healthy Regions (Green)</h4>
+                                                    <img 
+                                                        src={`/grass-api/images/${results.healthy_image_path}`}
+                                                        alt="Healthy Regions"
+                                                        className="w-auto h-64 object-contain rounded-lg mx-auto"
+                                                        onError={(e) => {
+                                                            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIwLjNlbSI+SW1hZ2UgTm90IEZvdW5kPC90ZXh0Pjwvc3ZnPg==';
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+                                            {results.unhealthy_image_path && (
+                                                <div className="animate-slideIn">
+                                                    <h4 className="font-medium mb-2">Unhealthy Regions (Red)</h4>
+                                                    <img 
+                                                        src={`/grass-api/images/${results.unhealthy_image_path}`}
+                                                        alt="Unhealthy Regions"
+                                                        className="w-auto h-64 object-contain rounded-lg mx-auto"
+                                                        onError={(e) => {
+                                                            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIwLjNlbSI+SW1hZ2UgTm90IEZvdW5kPC90ZXh0Pjwvc3ZnPg==';
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <button
+                                            onClick={handleDownloadPDF}
+                                            className="mt-4 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                        >
+                                            Download PDF Report
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const CalculateCompost = () => {
+            const [area, setArea] = useState('');
+            const [soilType, setSoilType] = useState('clay');
+            const [goal, setGoal] = useState('recovery');
+            const [result, setResult] = useState(null);
+
+            const handleCalculate = () => {
+                if (!area || area <= 0) {
+                    alert('Please enter a valid area');
+                    return;
+                }
+
+                const baseFactor = goal === 'recovery' ? 0.5 : 0.3;
+                const soilFactor = {
+                    sandy: 0.9,
+                    clay: 1.0,
+                    loam: 0.95
+                }[soilType];
+
+                const compostNeeded = parseFloat(area) * baseFactor * soilFactor;
+                
+                setResult({
+                    area: parseFloat(area),
+                    soilType,
+                    goal,
+                    compostNeeded: Math.round(compostNeeded * 100) / 100
+                });
+            };
+
+            const addToCart = () => {
+                if (!result) return;
+
+                const cart = storage.get('cart');
+                cart.push({
+                    type: 'compost',
+                    amount: result.compostNeeded,
+                    area: result.area,
+                    soilType: result.soilType,
+                    goal: result.goal,
+                    price: result.compostNeeded * 2.5, // Mock price per kg
+                    timestamp: new Date().toISOString()
+                });
+                storage.set('cart', cart);
+
+                // Save calculation
+                const calculations = storage.get('compostCalculations');
+                calculations.push({
+                    ...result,
+                    timestamp: new Date().toISOString()
+                });
+                storage.set('compostCalculations', calculations);
+
+                alert('Added to cart!');
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Calculate Compost</h1>
+                    
+                    <div className="bg-white p-6 rounded-lg shadow-md">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Area (m²)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={area}
+                                        onChange={(e) => setArea(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        placeholder="Enter area in square meters"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Soil Type
+                                    </label>
+                                    <select
+                                        value={soilType}
+                                        onChange={(e) => setSoilType(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    >
+                                        <option value="sandy">Sandy</option>
+                                        <option value="clay">Clay</option>
+                                        <option value="loam">Loam</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Goal
+                                    </label>
+                                    <select
+                                        value={goal}
+                                        onChange={(e) => setGoal(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    >
+                                        <option value="recovery">Recovery</option>
+                                        <option value="maintenance">Maintenance</option>
+                                    </select>
+                                </div>
+
+                                <button
+                                    onClick={handleCalculate}
+                                    className="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                >
+                                    Calculate
+                                </button>
+                            </div>
+
+                            {result && (
+                                <div className="bg-green-50 p-4 rounded-lg animate-fade">
+                                    <h3 className="text-lg font-semibold text-green-800 mb-3">Calculation Result</h3>
+                                    <div className="space-y-2 text-sm">
+                                        <p><strong>Area:</strong> {result.area} m²</p>
+                                        <p><strong>Soil Type:</strong> {result.soilType}</p>
+                                        <p><strong>Goal:</strong> {result.goal}</p>
+                                        <p className="text-lg font-bold text-green-700">
+                                            <strong>Compost Needed:</strong> {result.compostNeeded} kg
+                                        </p>
+                                        <p className="text-sm text-gray-600">
+                                            Estimated cost: ${(result.compostNeeded * 2.5).toFixed(2)}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={addToCart}
+                                        className="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                    >
+                                        Add to Cart
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Shop = () => {
+            const [activeTab, setActiveTab] = useState('products');
+            const [filter, setFilter] = useState('all');
+            const [cart, setCart] = useState([]);
+            const [wishlist, setWishlist] = useState([]);
+
+            const mockProducts = [
+                { id: 1, name: 'Organic Compost', category: 'compost', price: 25.99, rating: 4.5, inStock: true },
+                { id: 2, name: 'NPK Fertilizer', category: 'fertilizer', price: 19.99, rating: 4.2, inStock: true },
+                { id: 3, name: 'Rose Plant', category: 'plants', price: 15.99, rating: 4.8, inStock: false },
+                { id: 4, name: 'Garden Spade', category: 'tools', price: 29.99, rating: 4.3, inStock: true },
+                { id: 5, name: 'Lawn Fertilizer', category: 'fertilizer', price: 22.99, rating: 4.1, inStock: true },
+                { id: 6, name: 'Pruning Shears', category: 'tools', price: 34.99, rating: 4.6, inStock: true }
+            ];
+
+            useEffect(() => {
+                setCart(storage.get('cart'));
+                setWishlist(storage.get('wishlist'));
+            }, []);
+
+            const filteredProducts = filter === 'all' 
+                ? mockProducts 
+                : mockProducts.filter(product => product.category === filter);
+
+            const addToCart = (product) => {
+                const newCart = [...cart, { ...product, quantity: 1, timestamp: new Date().toISOString() }];
+                setCart(newCart);
+                storage.set('cart', newCart);
+            };
+
+            const addToWishlist = (product) => {
+                const newWishlist = [...wishlist, { ...product, timestamp: new Date().toISOString() }];
+                setWishlist(newWishlist);
+                storage.set('wishlist', newWishlist);
+            };
+
+            const removeFromCart = (index) => {
+                const newCart = cart.filter((_, i) => i !== index);
+                setCart(newCart);
+                storage.set('cart', newCart);
+            };
+
+            const getTotalPrice = () => {
+                return cart.reduce((total, item) => total + (item.price * (item.quantity || 1)), 0).toFixed(2);
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Shop</h1>
+                    
+                    <div className="bg-white rounded-lg shadow-md">
+                        <div className="border-b border-gray-200">
+                            <nav className="flex space-x-8 px-6">
+                                {['products', 'cart', 'wishlist', 'orders'].map((tab) => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setActiveTab(tab)}
+                                        className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                                            activeTab === tab
+                                                ? 'border-green-500 text-green-600'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                        }`}
+                                    >
+                                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                    </button>
+                                ))}
+                            </nav>
+                        </div>
+
+                        <div className="p-6">
+                            {activeTab === 'products' && (
+                                <div>
+                                    <div className="mb-4">
+                                        <select
+                                            value={filter}
+                                            onChange={(e) => setFilter(e.target.value)}
+                                            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        >
+                                            <option value="all">All Products</option>
+                                            <option value="compost">Compost</option>
+                                            <option value="fertilizer">Fertilizer</option>
+                                            <option value="plants">Plants</option>
+                                            <option value="tools">Tools</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {filteredProducts.map((product) => (
+                                            <div key={product.id} className="border rounded-lg p-4 animate-slideIn">
+                                                <div className="bg-gray-200 h-48 rounded-lg mb-4 flex items-center justify-center">
+                                                    <span className="text-gray-500">Product Image</span>
+                                                </div>
+                                                <h3 className="font-semibold text-lg mb-2">{product.name}</h3>
+                                                <p className="text-green-600 font-bold text-xl mb-2">${product.price}</p>
+                                                <p className="text-sm text-gray-600 mb-3">Rating: {product.rating}/5</p>
+                                                <div className="flex space-x-2">
+                                                    <button
+                                                        onClick={() => addToCart(product)}
+                                                        disabled={!product.inStock}
+                                                        className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {product.inStock ? 'Add to Cart' : 'Out of Stock'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => addToWishlist(product)}
+                                                        className="bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                                    >
+                                                        ♡
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'cart' && (
+                                <div>
+                                    <h2 className="text-xl font-semibold mb-4">Shopping Cart</h2>
+                                    {cart.length > 0 ? (
+                                        <div>
+                                            <div className="space-y-4 mb-6">
+                                                {cart.map((item, index) => (
+                                                    <div key={index} className="flex items-center justify-between border-b pb-4 animate-slideIn">
+                                                        <div>
+                                                            <h3 className="font-medium">{item.name || `${item.type} - ${item.amount}kg`}</h3>
+                                                            <p className="text-sm text-gray-600">
+                                                                {item.price ? `$${item.price}` : `$${(item.amount * 2.5).toFixed(2)}`}
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => removeFromCart(index)}
+                                                            className="text-red-500 hover:text-red-700 transition-colors duration-200"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="bg-gray-50 p-4 rounded-lg">
+                                                <p className="text-xl font-bold">Total: ${getTotalPrice()}</p>
+                                                <button className="mt-4 w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform">
+                                                    Checkout
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-500">Your cart is empty</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {activeTab === 'wishlist' && (
+                                <div>
+                                    <h2 className="text-xl font-semibold mb-4">Wishlist</h2>
+                                    {wishlist.length > 0 ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {wishlist.map((item, index) => (
+                                                <div key={index} className="border rounded-lg p-4 animate-slideIn">
+                                                    <h3 className="font-medium">{item.name}</h3>
+                                                    <p className="text-green-600 font-bold">${item.price}</p>
+                                                    <button
+                                                        onClick={() => addToCart(item)}
+                                                        className="mt-2 w-full bg-green-500 hover:bg-green-600 text-white py-1 px-3 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                                    >
+                                                        Add to Cart
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-500">Your wishlist is empty</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {activeTab === 'orders' && (
+                                <div>
+                                    <h2 className="text-xl font-semibold mb-4">Order History</h2>
+                                    <div className="space-y-4">
+                                        <div className="border rounded-lg p-4 animate-slideIn">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h3 className="font-medium">Order #1001</h3>
+                                                <span className="text-sm text-green-600">Delivered</span>
+                                            </div>
+                                            <p className="text-sm text-gray-600">Date: 2024-01-15</p>
+                                            <p className="text-sm text-gray-600">Total: $45.99</p>
+                                        </div>
+                                        <div className="border rounded-lg p-4 animate-slideIn">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h3 className="font-medium">Order #1002</h3>
+                                                <span className="text-sm text-yellow-600">Processing</span>
+                                            </div>
+                                            <p className="text-sm text-gray-600">Date: 2024-01-20</p>
+                                            <p className="text-sm text-gray-600">Total: $32.50</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Appointments = () => {
+            const [appointments, setAppointments] = useState([]);
+            const [newAppointment, setNewAppointment] = useState({
+                date: '',
+                time: '',
+                notes: ''
+            });
+
+            useEffect(() => {
+                setAppointments(storage.get('appointments'));
+            }, []);
+
+            const handleSubmit = () => {
+                if (!newAppointment.date || !newAppointment.time) {
+                    alert('Please fill in date and time');
+                    return;
+                }
+
+                const appointment = {
+                    ...newAppointment,
+                    id: Date.now(),
+                    status: 'pending',
+                    timestamp: new Date().toISOString()
+                };
+
+                const updatedAppointments = [...appointments, appointment];
+                setAppointments(updatedAppointments);
+                storage.set('appointments', updatedAppointments);
+
+                setNewAppointment({ date: '', time: '', notes: '' });
+                alert('Appointment booked successfully!');
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Appointments</h1>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">Book New Appointment</h2>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Date
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={newAppointment.date}
+                                        onChange={(e) => setNewAppointment({...newAppointment, date: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Time
+                                    </label>
+                                    <input
+                                        type="time"
+                                        value={newAppointment.time}
+                                        onChange={(e) => setNewAppointment({...newAppointment, time: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Notes
+                                    </label>
+                                    <textarea
+                                        value={newAppointment.notes}
+                                        onChange={(e) => setNewAppointment({...newAppointment, notes: e.target.value})}
+                                        rows={3}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        placeholder="Any specific requirements or notes..."
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={handleSubmit}
+                                    className="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                >
+                                    Book Appointment
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">Appointment History</h2>
+                            <div className="space-y-3">
+                                {appointments.length > 0 ? (
+                                    appointments.map((appointment) => (
+                                        <div key={appointment.id} className="border-l-4 border-green-500 pl-4 animate-slideIn">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-medium">{appointment.date} at {appointment.time}</p>
+                                                    {appointment.notes && (
+                                                        <p className="text-sm text-gray-600">{appointment.notes}</p>
+                                                    )}
+                                                </div>
+                                                <span className={`text-xs px-2 py-1 rounded ${
+                                                    appointment.status === 'confirmed' 
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : 'bg-yellow-100 text-yellow-800'
+                                                }`}>
+                                                    {appointment.status}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-gray-500">No appointments scheduled yet</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Diagnostics = () => {
+            const [analyses, setAnalyses] = useState([]);
+
+            useEffect(() => {
+                setAnalyses(storage.get('analyses'));
+            }, []);
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Diagnostics History</h1>
+                    
+                    <div className="bg-white rounded-lg shadow-md">
+                        <div className="p-6">
+                            {analyses.length > 0 ? (
+                                <div className="space-y-6">
+                                    {analyses.map((analysis, index) => (
+                                        <div key={index} className="border rounded-lg p-4 animate-slideIn">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <h3 className="font-semibold text-lg">
+                                                        {analysis.type === 'plant' ? 'Plant Analysis' : 'Grass Analysis'}
+                                                    </h3>
+                                                    <p className="text-sm text-gray-600">
+                                                        {new Date(analysis.timestamp).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                                <span className={`px-3 py-1 rounded-full text-sm ${
+                                                    analysis.type === 'plant' 
+                                                        ? (analysis.confidence > 0.7 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800')
+                                                        : ((analysis.healthy_percentage || 0) > (analysis.unhealthy_percentage || 0) ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800')
+                                                }`}>
+                                                    {analysis.type === 'plant' 
+                                                        ? (analysis.confidence > 0.7 ? 'Healthy' : 'Needs Attention')
+                                                        : ((analysis.healthy_percentage || 0) > (analysis.unhealthy_percentage || 0) ? 'Mostly Healthy' : 'Needs Treatment')
+                                                    }
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <h4 className="font-medium mb-2">Analysis Results</h4>
+                                                    {analysis.type === 'plant' ? (
+                                                        <div className="space-y-1 text-sm">
+                                                            <p><strong>Species:</strong> {analysis.species}</p>
+                                                            <p><strong>Confidence:</strong> {((analysis.confidence || 0) * 100).toFixed(1)}%</p>
+                                                            <p><strong>Yellowing:</strong> {analysis.yellow_percentage}%</p>
+                                                            <p><strong>Compost Needed:</strong> {analysis.estimated_compost_grams}g</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-1 text-sm">
+                                                            <p><strong>Healthy Regions:</strong> {analysis.healthy_percentage ? analysis.healthy_percentage.toFixed(2) + '%' : 'N/A'}</p>
+                                                            <p><strong>Unhealthy Regions:</strong> {analysis.unhealthy_percentage ? analysis.unhealthy_percentage.toFixed(2) + '%' : 'N/A'}</p>
+                                                            <p><strong>Compost Needed:</strong> {analysis.compost_needed_grams}g</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <h4 className="font-medium mb-2">Recommendations</h4>
+                                                    <div className="text-sm space-y-1">
+                                                        {analysis.type === 'plant' ? (
+                                                            analysis.confidence > 0.7 ? (
+                                                                <div>
+                                                                    <p className="text-green-600">✓ Plant appears healthy</p>
+                                                                    <p className="text-gray-600">• Continue regular care</p>
+                                                                    <p className="text-gray-600">• Monitor for changes</p>
+                                                                </div>
+                                                            ) : (
+                                                                <div>
+                                                                    <p className="text-red-600">⚠ Plant needs attention</p>
+                                                                    <p className="text-gray-600">• Apply recommended compost</p>
+                                                                    <p className="text-gray-600">• Increase monitoring</p>
+                                                                </div>
+                                                            )
+                                                        ) : (
+                                                            (analysis.healthy_percentage || 0) > (analysis.unhealthy_percentage || 0) ? (
+                                                                <div>
+                                                                    <p className="text-green-600">✓ Grass is mostly healthy</p>
+                                                                    <p className="text-gray-600">• Maintain current care</p>
+                                                                    <p className="text-gray-600">• Address unhealthy areas</p>
+                                                                </div>
+                                                            ) : (
+                                                                <div>
+                                                                    <p className="text-red-600">⚠ Grass needs treatment</p>
+                                                                    <p className="text-gray-600">• Apply recommended compost</p>
+                                                                    <p className="text-gray-600">• Consider professional help</p>
+                                                                </div>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8">
+                                    <p className="text-gray-500 mb-4">No diagnostics available yet</p>
+                                    <p className="text-sm text-gray-400">Start by scanning a plant or grass to see your analysis history here</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Profile = () => {
+            const [user, setUser] = useState(storage.getUser());
+            const [profile, setProfile] = useState({
+                name: '',
+                email: '',
+                phone: '',
+                address: '',
+                notifications: {
+                    email: true,
+                    sms: false,
+                    push: true
+                }
+            });
+
+            useEffect(() => {
+                const savedProfile = storage.get('profile')[0] || {};
+                setProfile(prev => ({...prev, ...savedProfile}));
+            }, []);
+
+            const handleSave = () => {
+                storage.set('profile', [profile]);
+                alert('Profile updated successfully!');
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Profile</h1>
+                    
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div>
+                                <h2 className="text-xl font-semibold mb-4">Personal Information</h2>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Full Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={profile.name}
+                                            onChange={(e) => setProfile({...profile, name: e.target.value})}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Email
+                                        </label>
+                                        <input
+                                            type="email"
+                                            value={profile.email}
+                                            onChange={(e) => setProfile({...profile, email: e.target.value})}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Phone
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            value={profile.phone}
+                                            onChange={(e) => setProfile({...profile, phone: e.target.value})}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Address
+                                        </label>
+                                        <textarea
+                                            value={profile.address}
+                                            onChange={(e) => setProfile({...profile, address: e.target.value})}
+                                            rows={3}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h2 className="text-xl font-semibold mb-4">Notification Preferences</h2>
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            Email Notifications
+                                        </label>
+                                        <input
+                                            type="checkbox"
+                                            checked={profile.notifications.email}
+                                            onChange={(e) => setProfile({
+                                                ...profile,
+                                                notifications: {
+                                                    ...profile.notifications,
+                                                    email: e.target.checked
+                                                }
+                                            })}
+                                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            SMS Notifications
+                                        </label>
+                                        <input
+                                            type="checkbox"
+                                            checked={profile.notifications.sms}
+                                            onChange={(e) => setProfile({
+                                                ...profile,
+                                                notifications: {
+                                                    ...profile.notifications,
+                                                    sms: e.target.checked
+                                                }
+                                            })}
+                                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            Push Notifications
+                                        </label>
+                                        <input
+                                            type="checkbox"
+                                            checked={profile.notifications.push}
+                                            onChange={(e) => setProfile({
+                                                ...profile,
+                                                notifications: {
+                                                    ...profile.notifications,
+                                                    push: e.target.checked
+                                                }
+                                            })}
+                                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mt-6">
+                                    <h3 className="text-lg font-medium mb-3">Account Information</h3>
+                                    <div className="bg-gray-50 p-4 rounded-lg">
+                                        <p className="text-sm text-gray-600">
+                                            <strong>Username:</strong> {user?.username?.replace('admin_', '')}
+                                        </p>
+                                        <p className="text-sm text-gray-600">
+                                            <strong>Account Type:</strong> {user?.isAdmin ? 'Admin' : 'Client'}
+                                        </p>
+                                        <p className="text-sm text-gray-600">
+                                            <strong>Member Since:</strong> {new Date(user?.createdAt).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                onClick={handleSave}
+                                className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                            >
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Notifications = () => {
+            const mockNotifications = [
+                { id: 1, type: 'disease', title: 'Disease Detected', message: 'Plant blight detected in your rose garden', timestamp: '2024-01-20T10:30:00Z', read: false },
+                { id: 2, type: 'maintenance', title: 'Maintenance Reminder', message: 'Time to fertilize your lawn', timestamp: '2024-01-19T14:15:00Z', read: false },
+                { id: 3, type: 'promo', title: 'Special Offer', message: '20% off on all organic fertilizers', timestamp: '2024-01-18T09:00:00Z', read: true },
+                { id: 4, type: 'appointment', title: 'Appointment Confirmed', message: 'Your gardener appointment is confirmed for tomorrow', timestamp: '2024-01-17T16:45:00Z', read: true }
+            ];
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Notifications</h1>
+                    
+                    <div className="bg-white rounded-lg shadow-md">
+                        <div className="p-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-xl font-semibold">Recent Notifications</h2>
+                                <button className="text-green-600 hover:text-green-700 text-sm transition-colors duration-200">
+                                    Mark all as read
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                {mockNotifications.map((notification) => (
+                                    <div
+                                        key={notification.id}
+                                        className={`p-4 rounded-lg border-l-4 animate-slideIn ${
+                                            notification.read
+                                                ? 'bg-gray-50 border-gray-300'
+                                                : 'bg-blue-50 border-blue-500'
+                                        } ${
+                                            notification.type === 'disease'
+                                                ? 'border-red-500 bg-red-50'
+                                                : notification.type === 'maintenance'
+                                                ? 'border-yellow-500 bg-yellow-50'
+                                                : notification.type === 'promo'
+                                                ? 'border-green-500 bg-green-50'
+                                                : 'border-blue-500 bg-blue-50'
+                                        }`}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <h3 className="font-semibold text-gray-800 mb-1">
+                                                    {notification.title}
+                                                </h3>
+                                                <p className="text-sm text-gray-600 mb-2">
+                                                    {notification.message}
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    {new Date(notification.timestamp).toLocaleString()}
+                                                </p>
+                                            </div>
+                                            {!notification.read && (
+                                                <div className="w-3 h-3 bg-blue-500 rounded-full ml-4 mt-1"></div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Assistance = () => {
+            const [activeTab, setActiveTab] = useState('chat');
+            const [chatMessage, setChatMessage] = useState('');
+            const [chatHistory, setChatHistory] = useState([
+                { type: 'bot', message: 'Hello! How can I help you with your plants today?' },
+                { type: 'user', message: 'My roses have yellow spots' },
+                { type: 'bot', message: 'Yellow spots on roses could indicate fungal disease. Have you tried our plant analysis feature? It can help identify the specific issue and recommend treatment.' }
+            ]);
+
+            const faqItems = [
+                { question: 'How accurate is the plant analysis?', answer: 'Our AI-powered analysis has an accuracy rate of over 90% for common plant diseases and health issues.' },
+                { question: 'How often should I use the compost calculator?', answer: 'We recommend using the calculator at the beginning of each growing season or when starting new garden projects.' },
+                { question: 'Can I book multiple appointments?', answer: 'Yes, you can book multiple appointments. Our gardeners are available 7 days a week.' },
+                { question: 'What file formats are supported for analysis?', answer: 'We support PNG, JPG, JPEG, and MV2 formats for plant images. Grass analysis supports PNG, JPG, and JPEG.' },
+                { question: 'How do I cancel an appointment?', answer: 'You can cancel appointments up to 24 hours in advance through your appointments page.' }
+            ];
+
+            const handleSendMessage = () => {
+                if (!chatMessage.trim()) return;
+
+                const newMessage = { type: 'user', message: chatMessage };
+                const botResponse = { type: 'bot', message: 'Thank you for your message. Our support team will get back to you shortly.' };
+                
+                setChatHistory([...chatHistory, newMessage, botResponse]);
+                setChatMessage('');
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Assistance</h1>
+                    
+                    <div className="bg-white rounded-lg shadow-md">
+                        <div className="border-b border-gray-200">
+                            <nav className="flex space-x-8 px-6">
+                                {['chat', 'faq', 'support'].map((tab) => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setActiveTab(tab)}
+                                        className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                                            activeTab === tab
+                                                ? 'border-green-500 text-green-600'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                        }`}
+                                    >
+                                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                    </button>
+                                ))}
+                            </nav>
+                        </div>
+
+                        <div className="p-6">
+                            {activeTab === 'chat' && (
+                                <div>
+                                    <h2 className="text-xl font-semibold mb-4">Live Chat Support</h2>
+                                    <div className="border rounded-lg p-4 h-96 overflow-y-auto mb-4">
+                                        <div className="space-y-4">
+                                            {chatHistory.map((msg, index) => (
+                                                <div
+                                                    key={index}
+                                                    className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'} animate-slideIn`}
+                                                >
+                                                    <div
+                                                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                                                            msg.type === 'user'
+                                                                ? 'bg-green-500 text-white'
+                                                                : 'bg-gray-100 text-gray-800'
+                                                        }`}
+                                                    >
+                                                        {msg.message}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex space-x-2">
+                                        <input
+                                            type="text"
+                                            value={chatMessage}
+                                            onChange={(e) => setChatMessage(e.target.value)}
+                                            placeholder="Type your message..."
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        />
+                                        <button
+                                            onClick={handleSendMessage}
+                                            className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                        >
+                                            Send
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'faq' && (
+                                <div>
+                                    <h2 className="text-xl font-semibold mb-4">Frequently Asked Questions</h2>
+                                    <div className="space-y-4">
+                                        {faqItems.map((faq, index) => (
+                                            <div key={index} className="border rounded-lg p-4 animate-slideIn">
+                                                <h3 className="font-semibold text-gray-800 mb-2">{faq.question}</h3>
+                                                <p className="text-gray-600">{faq.answer}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'support' && (
+                                <div>
+                                    <h2 className="text-xl font-semibold mb-4">Contact Support</h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Subject
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                    placeholder="Brief description of your issue"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Message
+                                                </label>
+                                                <textarea
+                                                    rows={6}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                    placeholder="Describe your issue in detail..."
+                                                />
+                                            </div>
+                                            <button className="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform">
+                                                Send Message
+                                            </button>
+                                        </div>
+                                        <div className="bg-gray-50 p-4 rounded-lg">
+                                            <h3 className="font-semibold mb-3">Other Ways to Reach Us</h3>
+                                            <div className="space-y-2 text-sm">
+                                                <p><strong>Email:</strong> support@planthealth.com</p>
+                                                <p><strong>Phone:</strong> +1 (555) 123-4567</p>
+                                                <p><strong>Hours:</strong> Mon-Fri 9AM-6PM EST</p>
+                                                <p><strong>Response Time:</strong> Within 24 hours</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Admin Pages
+        const AdminDashboard = () => {
+            const [stats, setStats] = useState({
+                totalDiagnostics: 0,
+                totalSales: 0,
+                totalAppointments: 0,
+                totalCompostCalculations: 0
+            });
+
+            useEffect(() => {
+                const analyses = storage.get('analyses');
+                const cart = storage.get('cart');
+                const appointments = storage.get('appointments');
+                const calculations = storage.get('compostCalculations');
+
+                setStats({
+                    totalDiagnostics: analyses.length,
+                    totalSales: cart.reduce((sum, item) => sum + (item.price || 0), 0),
+                    totalAppointments: appointments.length,
+                    totalCompostCalculations: calculations.length
+                });
+            }, []);
+
+            const chartData = {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                datasets: [
+                    {
+                        label: 'Diagnostics',
+                        data: [12, 19, 15, 25, 22, 30],
+                        borderColor: 'rgba(16, 185, 129, 0.8)',
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Sales',
+                        data: [8, 15, 12, 20, 18, 25],
+                        borderColor: 'rgba(59, 130, 246, 0.8)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        tension: 0.4
+                    }
+                ]
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Admin Dashboard</h1>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div className="bg-white p-6 rounded-lg shadow-md animate-slideIn">
+                            <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Diagnostics</h3>
+                            <p className="text-3xl font-bold text-green-600">{stats.totalDiagnostics}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow-md animate-slideIn">
+                            <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Sales</h3>
+                            <p className="text-3xl font-bold text-blue-600">${stats.totalSales.toFixed(2)}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow-md animate-slideIn">
+                            <h3 className="text-lg font-semibold text-gray-700 mb-2">Appointments</h3>
+                            <p className="text-3xl font-bold text-purple-600">{stats.totalAppointments}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow-md animate-slideIn">
+                            <h3 className="text-lg font-semibold text-gray-700 mb-2">Compost Calculations</h3>
+                            <p className="text-3xl font-bold text-orange-600">{stats.totalCompostCalculations}</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-lg shadow-md">
+                        <h2 className="text-xl font-semibold mb-4">Performance Overview</h2>
+                        <ChartComponent data={chartData} />
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminUsers = () => {
+            const [users, setUsers] = useState([]);
+            const [searchTerm, setSearchTerm] = useState('');
+
+            useEffect(() => {
+                const accounts = storage.get('accounts');
+                setUsers(accounts.filter(account => !account.isAdmin));
+            }, []);
+
+            const filteredUsers = users.filter(user =>
+                user.username.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            const deactivateUser = (username) => {
+                const accounts = storage.get('accounts');
+                const updatedAccounts = accounts.map(account =>
+                    account.username === username
+                        ? { ...account, isActive: false }
+                        : account
+                );
+                storage.set('accounts', updatedAccounts);
+                setUsers(updatedAccounts.filter(account => !account.isAdmin));
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">User Management</h1>
+                    
+                    <div className="bg-white rounded-lg shadow-md">
+                        <div className="p-6 border-b border-gray-200">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-xl font-semibold">Client Accounts</h2>
+                                <input
+                                    type="text"
+                                    placeholder="Search users..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-6">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-gray-200">
+                                            <th className="text-left py-3 px-4">Username</th>
+                                            <th className="text-left py-3 px-4">Created</th>
+                                            <th className="text-left py-3 px-4">Status</th>
+                                            <th className="text-left py-3 px-4">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredUsers.map((user, index) => (
+                                            <tr key={index} className="border-b border-gray-100 animate-slideIn">
+                                                <td className="py-3 px-4">{user.username}</td>
+                                                <td className="py-3 px-4">{new Date(user.createdAt).toLocaleDateString()}</td>
+                                                <td className="py-3 px-4">
+                                                    <span className={`px-2 py-1 rounded-full text-xs ${
+                                                        user.isActive !== false
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-red-100 text-red-800'
+                                                    }`}>
+                                                        {user.isActive !== false ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <button
+                                                        onClick={() => deactivateUser(user.username)}
+                                                        className="text-red-600 hover:text-red-800 text-sm transition-colors duration-200"
+                                                    >
+                                                        Deactivate
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminProducts = () => {
+            const [products, setProducts] = useState([
+                { id: 1, name: 'Organic Compost', category: 'compost', price: 25.99, stock: 50 },
+                { id: 2, name: 'NPK Fertilizer', category: 'fertilizer', price: 19.99, stock: 30 },
+                { id: 3, name: 'Rose Plant', category: 'plants', price: 15.99, stock: 0 },
+                { id: 4, name: 'Garden Spade', category: 'tools', price: 29.99, stock: 15 }
+            ]);
+
+            const [newProduct, setNewProduct] = useState({
+                name: '',
+                category: 'compost',
+                price: '',
+                stock: ''
+            });
+
+            const addProduct = () => {
+                if (!newProduct.name || !newProduct.price || !newProduct.stock) {
+                    alert('Please fill in all fields');
+                    return;
+                }
+
+                const product = {
+                    id: Date.now(),
+                    name: newProduct.name,
+                    category: newProduct.category,
+                    price: parseFloat(newProduct.price),
+                    stock: parseInt(newProduct.stock)
+                };
+
+                setProducts([...products, product]);
+                setNewProduct({ name: '', category: 'compost', price: '', stock: '' });
+                alert('Product added successfully!');
+            };
+
+            const updateStock = (id, change) => {
+                setProducts(products.map(product =>
+                    product.id === id
+                        ? { ...product, stock: Math.max(0, product.stock + change) }
+                        : product
+                ));
+            };
+
+            const deleteProduct = (id) => {
+                setProducts(products.filter(product => product.id !== id));
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Product Management</h1>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">Add New Product</h2>
+                            <div className="space-y-4">
+                                <input
+                                    type="text"
+                                    placeholder="Product Name"
+                                    value={newProduct.name}
+                                    onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                />
+                                <select
+                                    value={newProduct.category}
+                                    onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                >
+                                    <option value="compost">Compost</option>
+                                    <option value="fertilizer">Fertilizer</option>
+                                    <option value="plants">Plants</option>
+                                    <option value="tools">Tools</option>
+                                </select>
+                                <input
+                                    type="number"
+                                    placeholder="Price"
+                                    value={newProduct.price}
+                                    onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                />
+                                <input
+                                    type="number"
+                                    placeholder="Stock Quantity"
+                                    value={newProduct.stock}
+                                    onChange={(e) => setNewProduct({...newProduct, stock: e.target.value})}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                />
+                                <button
+                                    onClick={addProduct}
+                                    className="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                >
+                                    Add Product
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">Product Inventory</h2>
+                            <div className="space-y-4 max-h-96 overflow-y-auto">
+                                {products.map((product) => (
+                                    <div key={product.id} className="border rounded-lg p-4 animate-slideIn">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <h3 className="font-medium">{product.name}</h3>
+                                                <p className="text-sm text-gray-600">{product.category}</p>
+                                                <p className="text-green-600 font-bold">${product.price}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => deleteProduct(product.id)}
+                                                className="text-red-500 hover:text-red-700 text-sm transition-colors duration-200"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm">Stock: {product.stock}</span>
+                                            <div className="flex space-x-2">
+                                                <button
+                                                    onClick={() => updateStock(product.id, -1)}
+                                                    className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-sm transition-all duration-200"
+                                                >
+                                                    -
+                                                </button>
+                                                <button
+                                                    onClick={() => updateStock(product.id, 1)}
+                                                    className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-sm transition-all duration-200"
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminCompost = () => {
+            const [calculations, setCalculations] = useState([]);
+            const [stats, setStats] = useState({
+                averageArea: 0,
+                totalRecommended: 0,
+                totalPurchased: 0
+            });
+
+            useEffect(() => {
+                const savedCalculations = storage.get('compostCalculations');
+                setCalculations(savedCalculations);
+
+                if (savedCalculations.length > 0) {
+                    const avgArea = savedCalculations.reduce((sum, calc) => sum + calc.area, 0) / savedCalculations.length;
+                    const totalRec = savedCalculations.reduce((sum, calc) => sum + calc.compostNeeded, 0);
+                    const totalPur = savedCalculations.reduce((sum, calc) => sum + (calc.purchased || calc.compostNeeded * 0.8), 0);
+
+                    setStats({
+                        averageArea: Math.round(avgArea * 100) / 100,
+                        totalRecommended: Math.round(totalRec * 100) / 100,
+                        totalPurchased: Math.round(totalPur * 100) / 100
+                    });
+                }
+            }, []);
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Compost Calculations</h1>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div className="bg-white p-6 rounded-lg shadow-md animate-slideIn">
+                            <h3 className="text-lg font-semibold text-gray-700 mb-2">Average Area</h3>
+                            <p className="text-3xl font-bold text-green-600">{stats.averageArea} m²</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow-md animate-slideIn">
+                            <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Recommended</h3>
+                            <p className="text-3xl font-bold text-blue-600">{stats.totalRecommended} kg</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow-md animate-slideIn">
+                            <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Purchased</h3>
+                            <p className="text-3xl font-bold text-purple-600">{stats.totalPurchased} kg</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow-md">
+                        <div className="p-6">
+                            <h2 className="text-xl font-semibold mb-4">Calculation History</h2>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-gray-200">
+                                            <th className="text-left py-3 px-4">Date</th>
+                                            <th className="text-left py-3 px-4">Area (m²)</th>
+                                            <th className="text-left py-3 px-4">Soil Type</th>
+                                            <th className="text-left py-3 px-4">Goal</th>
+                                            <th className="text-left py-3 px-4">Recommended (kg)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {calculations.map((calc, index) => (
+                                            <tr key={index} className="border-b border-gray-100 animate-slideIn">
+                                                <td className="py-3 px-4">{new Date(calc.timestamp).toLocaleDateString()}</td>
+                                                <td className="py-3 px-4">{calc.area}</td>
+                                                <td className="py-3 px-4">{calc.soilType}</td>
+                                                <td className="py-3 px-4">{calc.goal}</td>
+                                                <td className="py-3 px-4">{calc.compostNeeded}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminDiagnostics = () => {
+            const [analyses, setAnalyses] = useState([]);
+            const [diseaseStats, setDiseaseStats] = useState({});
+
+            useEffect(() => {
+                const savedAnalyses = storage.get('analyses');
+                setAnalyses(savedAnalyses);
+
+                // Calculate disease frequency
+                const diseases = {};
+                savedAnalyses.forEach(analysis => {
+                    if (analysis.type === 'plant' && analysis.species) {
+                        diseases[analysis.species] = (diseases[analysis.species] || 0) + 1;
+                    }
+                });
+                setDiseaseStats(diseases);
+            }, []);
+
+            const diseaseChartData = {
+                labels: Object.keys(diseaseStats),
+                datasets: [{
+                    label: 'Disease Frequency',
+                    data: Object.values(diseaseStats),
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 205, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(153, 102, 255, 0.8)'
+                    ]
+                }]
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">AI Diagnostics</h1>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">Disease Frequency</h2>
+                            {Object.keys(diseaseStats).length > 0 ? (
+                                <ChartComponent data={diseaseChartData} type="bar" />
+                            ) : (
+                                <p className="text-gray-500">No diagnostic data available</p>
+                            )}
+                        </div>
+
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">Analysis Summary</h2>
+                            <div className="space-y-3">
+                                <div className="flex justify-between">
+                                    <span>Total Analyses:</span>
+                                    <span className="font-bold">{analyses.length}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>Plant Analyses:</span>
+                                    <span className="font-bold">{analyses.filter(a => a.type === 'plant').length}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>Grass Analyses:</span>
+                                    <span className="font-bold">{analyses.filter(a => a.type === 'grass').length}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>Healthy Plants:</span>
+                                    <span className="font-bold text-green-600">
+                                        {analyses.filter(a => a.type === 'plant' && a.confidence > 0.7).length}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>Unhealthy Plants:</span>
+                                    <span className="font-bold text-red-600">
+                                        {analyses.filter(a => a.type === 'plant' && a.confidence <= 0.7).length}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow-md">
+                        <div className="p-6">
+                            <h2 className="text-xl font-semibold mb-4">Recent Analyses</h2>
+                            <div className="space-y-4">
+                                {analyses.slice(-10).reverse().map((analysis, index) => (
+                                    <div key={index} className="border rounded-lg p-4 animate-slideIn">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-medium">
+                                                    {analysis.type === 'plant' ? 'Plant Analysis' : 'Grass Analysis'}
+                                                </h3>
+                                                <p className="text-sm text-gray-600">
+                                                    {analysis.type === 'plant' ? analysis.species : 'Grass Health Assessment'}
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    {new Date(analysis.timestamp).toLocaleString()}
+                                                </p>
+                                            </div>
+                                            <span className={`px-2 py-1 rounded-full text-xs ${
+                                                analysis.type === 'plant'
+                                                    ? (analysis.confidence > 0.7 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800')
+                                                    : ((analysis.healthy_percentage || 0) > (analysis.unhealthy_percentage || 0) ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800')
+                                            }`}>
+                                                {analysis.type === 'plant'
+                                                    ? `${((analysis.confidence || 0) * 100).toFixed(1)}% confidence`
+                                                    : `${analysis.healthy_percentage || 0}%H/${analysis.unhealthy_percentage || 0}%U`
+                                                }
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminAppointments = () => {
+            const [appointments, setAppointments] = useState([]);
+            const [gardeners, setGardeners] = useState([
+                { id: 1, name: 'John Smith', specialty: 'Rose Care', rating: 4.8, available: true },
+                { id: 2, name: 'Maria Garcia', specialty: 'Lawn Maintenance', rating: 4.9, available: true },
+                { id: 3, name: 'David Chen', specialty: 'Organic Gardening', rating: 4.7, available: false },
+                { id: 4, name: 'Sarah Johnson', specialty: 'Disease Treatment', rating: 4.6, available: true }
+            ]);
+
+            useEffect(() => {
+                setAppointments(storage.get('appointments'));
+            }, []);
+
+            const assignGardener = (appointmentId, gardenerId) => {
+                const updatedAppointments = appointments.map(appointment =>
+                    appointment.id === appointmentId
+                        ? { ...appointment, gardenerId, status: 'confirmed' }
+                        : appointment
+                );
+                setAppointments(updatedAppointments);
+                storage.set('appointments', updatedAppointments);
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Appointments & Gardeners</h1>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">Gardener Team</h2>
+                            <div className="space-y-4">
+                                {gardeners.map((gardener) => (
+                                    <div key={gardener.id} className="border rounded-lg p-4 animate-slideIn">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-medium">{gardener.name}</h3>
+                                                <p className="text-sm text-gray-600">{gardener.specialty}</p>
+                                                <p className="text-sm text-yellow-600">★ {gardener.rating}/5</p>
+                                            </div>
+                                            <span className={`px-2 py-1 rounded-full text-xs ${
+                                                gardener.available
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-red-100 text-red-800'
+                                            }`}>
+                                                {gardener.available ? 'Available' : 'Busy'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">Appointment Management</h2>
+                            <div className="space-y-4">
+                                {appointments.map((appointment) => (
+                                    <div key={appointment.id} className="border rounded-lg p-4 animate-slideIn">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <p className="font-medium">{appointment.date} at {appointment.time}</p>
+                                                <p className="text-sm text-gray-600">{appointment.notes}</p>
+                                            </div>
+                                            <span className={`px-2 py-1 rounded-full text-xs ${
+                                                appointment.status === 'confirmed'
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                                {appointment.status}
+                                            </span>
+                                        </div>
+                                        {appointment.status === 'pending' && (
+                                            <div className="flex space-x-2">
+                                                <select
+                                                    onChange={(e) => assignGardener(appointment.id, parseInt(e.target.value))}
+                                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                                                    defaultValue=""
+                                                >
+                                                    <option value="">Assign Gardener</option>
+                                                    {gardeners.filter(g => g.available).map(gardener => (
+                                                        <option key={gardener.id} value={gardener.id}>
+                                                            {gardener.name} - {gardener.specialty}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+                                        {appointment.gardenerId && (
+                                            <p className="text-sm text-green-600 mt-2">
+                                                Assigned to: {gardeners.find(g => g.id === appointment.gardenerId)?.name}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminOrders = () => {
+            const [orders, setOrders] = useState([
+                { id: 1001, customer: 'john_doe', total: 45.99, status: 'delivered', date: '2024-01-15', items: ['Organic Compost', 'Garden Spade'] },
+                { id: 1002, customer: 'jane_smith', total: 32.50, status: 'processing', date: '2024-01-20', items: ['NPK Fertilizer'] },
+                { id: 1003, customer: 'bob_wilson', total: 67.48, status: 'shipped', date: '2024-01-22', items: ['Rose Plant', 'Pruning Shears'] }
+            ]);
+
+            const exportCSV = () => {
+                const csv = orders.map(order => 
+                    `${order.id},${order.customer},${order.total},${order.status},${order.date},"${order.items.join('; ')}"`
+                ).join('\n');
+                
+                const header = 'Order ID,Customer,Total,Status,Date,Items\n';
+                const csvContent = header + csv;
+                
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'orders_export.csv';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Orders & Payments</h1>
+                    
+                    <div className="bg-white rounded-lg shadow-md">
+                        <div className="p-6 border-b border-gray-200">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-xl font-semibold">Order Management</h2>
+                                <button
+                                    onClick={exportCSV}
+                                    className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                >
+                                    Export CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                <div className="text-center">
+                                    <p className="text-2xl font-bold text-green-600">${orders.reduce((sum, order) => sum + order.total, 0).toFixed(2)}</p>
+                                    <p className="text-sm text-gray-600">Total Revenue</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-2xl font-bold text-blue-600">{orders.length}</p>
+                                    <p className="text-sm text-gray-600">Total Orders</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-2xl font-bold text-purple-600">{orders.filter(o => o.status === 'delivered').length}</p>
+                                    <p className="text-sm text-gray-600">Delivered Orders</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                {orders.map((order) => (
+                                    <div key={order.id} className="border rounded-lg p-4 animate-slideIn">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <h3 className="font-medium">Order #{order.id}</h3>
+                                                <p className="text-sm text-gray-600">Customer: {order.customer}</p>
+                                                <p className="text-sm text-gray-600">Date: {order.date}</p>
+                                                <p className="text-sm text-gray-600">Items: {order.items.join(', ')}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-lg font-bold text-green-600">${order.total}</p>
+                                                <span className={`px-2 py-1 rounded-full text-xs ${
+                                                    order.status === 'delivered'
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : order.status === 'shipped'
+                                                        ? 'bg-blue-100 text-blue-800'
+                                                        : 'bg-yellow-100 text-yellow-800'
+                                                }`}>
+                                                    {order.status}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-green-600">✓ Payment Processed (Stripe)</span>
+                                            <button className="text-blue-600 hover:text-blue-800 transition-colors duration-200">
+                                                View Details
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminStatistics = () => {
+            const salesChartData = {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                datasets: [{
+                    label: 'Sales ($)',
+                    data: [1200, 1900, 1500, 2500, 2200, 3000],
+                    borderColor: 'rgba(16, 185, 129, 0.8)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                    tension: 0.4
+                }]
+            };
+
+            const diagnosticsChartData = {
+                labels: ['Plant', 'Grass'],
+                datasets: [{
+                    label: 'Analyses',
+                    data: [65, 35],
+                    backgroundColor: ['rgba(54, 162, 235, 0.8)', 'rgba(255, 99, 132, 0.8)']
+                }]
+            };
+
+            const regionChartData = {
+                labels: ['North', 'South', 'East', 'West', 'Central'],
+                datasets: [{
+                    label: 'Disease Reports',
+                    data: [12, 8, 15, 6, 9],
+                    backgroundColor: 'rgba(255, 206, 86, 0.8)'
+                }]
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Statistics & Reporting</h1>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-lg shadow-md animate-slideUp">
+                            <h2 className="text-xl font-semibold mb-4">Sales Performance</h2>
+                            <ChartComponent data={salesChartData} />
+                        </div>
+
+                        <div className="bg-white p-6 rounded-lg shadow-md animate-slideUp">
+                            <h2 className="text-xl font-semibold mb-4">Analysis Distribution</h2>
+                            <ChartComponent data={diagnosticsChartData} type="doughnut" />
+                        </div>
+
+                        <div className="bg-white p-6 rounded-lg shadow-md animate-slideUp">
+                            <h2 className="text-xl font-semibold mb-4">Disease Reports by Region</h2>
+                            <ChartComponent data={regionChartData} type="bar" />
+                        </div>
+
+                        <div className="bg-white p-6 rounded-lg shadow-md animate-slideUp">
+                            <h2 className="text-xl font-semibold mb-4">User Engagement Metrics</h2>
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <span>Daily Active Users:</span>
+                                    <span className="font-bold text-green-600">247</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span>Weekly Active Users:</span>
+                                    <span className="font-bold text-blue-600">1,521</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span>Monthly Active Users:</span>
+                                    <span className="font-bold text-purple-600">4,892</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span>Average Session Duration:</span>
+                                    <span className="font-bold text-orange-600">8.5 min</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span>Conversion Rate:</span>
+                                    <span className="font-bold text-red-600">12.3%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminPages = () => {
+            const [pages, setPages] = useState([
+                { id: 1, title: 'Terms of Service', status: 'published', lastUpdated: '2024-01-15' },
+                { id: 2, title: 'Privacy Policy', status: 'published', lastUpdated: '2024-01-10' },
+                { id: 3, title: 'About Us', status: 'draft', lastUpdated: '2024-01-20' },
+                { id: 4, title: 'Contact', status: 'published', lastUpdated: '2024-01-05' }
+            ]);
+
+            const [selectedPage, setSelectedPage] = useState(null);
+            const [content, setContent] = useState('');
+
+            const editPage = (page) => {
+                setSelectedPage(page);
+                setContent(`Content for ${page.title} page...`);
+            };
+
+            const savePage = () => {
+                if (selectedPage) {
+                    const updatedPages = pages.map(page =>
+                        page.id === selectedPage.id
+                            ? { ...page, lastUpdated: new Date().toISOString().split('T')[0] }
+                            : page
+                    );
+                    setPages(updatedPages);
+                    setSelectedPage(null);
+                    setContent('');
+                    alert('Page updated successfully!');
+                }
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Pages & Content Management</h1>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">Static Pages</h2>
+                            <div className="space-y-4">
+                                {pages.map((page) => (
+                                    <div key={page.id} className="border rounded-lg p-4 animate-slideIn">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-medium">{page.title}</h3>
+                                                <p className="text-sm text-gray-600">Last updated: {page.lastUpdated}</p>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <span className={`px-2 py-1 rounded-full text-xs ${
+                                                    page.status === 'published'
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : 'bg-yellow-100 text-yellow-800'
+                                                }`}>
+                                                    {page.status}
+                                                </span>
+                                                <button
+                                                    onClick={() => editPage(page)}
+                                                    className="text-blue-600 hover:text-blue-800 text-sm transition-colors duration-200"
+                                                >
+                                                    Edit
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">
+                                {selectedPage ? `Edit ${selectedPage.title}` : 'Select a page to edit'}
+                            </h2>
+                            {selectedPage ? (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Page Title
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={selectedPage.title}
+                                            onChange={(e) => setSelectedPage({...selectedPage, title: e.target.value})}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Content
+                                        </label>
+                                        <textarea
+                                            value={content}
+                                            onChange={(e) => setContent(e.target.value)}
+                                            rows={10}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                            placeholder="Enter page content..."
+                                        />
+                                    </div>
+                                    <div className="flex space-x-2">
+                                        <button
+                                            onClick={savePage}
+                                            className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                        >
+                                            Save
+                                        </button>
+                                        <button
+                                            onClick={() => {setSelectedPage(null); setContent('');}}
+                                            className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-gray-500">Click on a page from the list to start editing</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminSettings = () => {
+            const [settings, setSettings] = useState({
+                systemName: 'Plant Health Analysis System',
+                maintenanceMode: false,
+                apiRateLimit: 100,
+                backupFrequency: 'daily',
+                emailNotifications: true
+            });
+
+            const [apiKeys, setApiKeys] = useState([
+                { name: 'Plant Analysis API', key: '****-****-****-1234', status: 'active' },
+                { name: 'Grass Analysis API', key: '****-****-****-5678', status: 'active' },
+                { name: 'Stripe Payment', key: '****-****-****-9012', status: 'active' }
+            ]);
+
+            const saveSettings = () => {
+                storage.set('adminSettings', settings);
+                alert('Settings saved successfully!');
+            };
+
+            return (
+                <div className="animate-fade">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Settings & Security</h1>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">System Configuration</h2>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        System Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={settings.systemName}
+                                        onChange={(e) => setSettings({...settings, systemName: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                    <label className="text-sm font-medium text-gray-700">
+                                        Maintenance Mode
+                                    </label>
+                                    <input
+                                        type="checkbox"
+                                        checked={settings.maintenanceMode}
+                                        onChange={(e) => setSettings({...settings, maintenanceMode: e.target.checked})}
+                                        className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        API Rate Limit (per hour)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={settings.apiRateLimit}
+                                        onChange={(e) => setSettings({...settings, apiRateLimit: parseInt(e.target.value)})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Backup Frequency
+                                    </label>
+                                    <select
+                                        value={settings.backupFrequency}
+                                        onChange={(e) => setSettings({...settings, backupFrequency: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    >
+                                        <option value="hourly">Hourly</option>
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                    <label className="text-sm font-medium text-gray-700">
+                                        Email Notifications
+                                    </label>
+                                    <input
+                                        type="checkbox"
+                                        checked={settings.emailNotifications}
+                                        onChange={(e) => setSettings({...settings, emailNotifications: e.target.checked})}
+                                        className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={saveSettings}
+                                    className="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                >
+                                    Save Settings
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold mb-4">API Keys Management</h2>
+                            <div className="space-y-4">
+                                {apiKeys.map((api, index) => (
+                                    <div key={index} className="border rounded-lg p-4 animate-slideIn">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-medium">{api.name}</h3>
+                                                <p className="text-sm text-gray-600 font-mono">{api.key}</p>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <span className={`px-2 py-1 rounded-full text-xs ${
+                                                    api.status === 'active'
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : 'bg-red-100 text-red-800'
+                                                }`}>
+                                                    {api.status}
+                                                </span>
+                                                <button className="text-blue-600 hover:text-blue-800 text-sm transition-colors duration-200">
+                                                    Regenerate
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-6">
+                                <h3 className="font-medium mb-3">Role Management</h3>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm">Super Admin</span>
+                                        <span className="text-xs text-gray-500">Full access</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm">Admin</span>
+                                        <span className="text-xs text-gray-500">Limited access</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm">Client</span>
+                                        <span className="text-xs text-gray-500">Client features only</span>
+                                    </div>
+                                </div>
+
+                                <button className="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform">
+                                    Manage Roles
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Navigation Component
+        const Sidebar = ({ items, activePage, onPageChange, userType }) => (
+            <div className="w-64 bg-white shadow-lg h-screen overflow-y-auto">
+                <div className="p-4 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-green-600">
+                        {userType === 'admin' ? 'Admin Panel' : 'Plant Health'}
+                    </h2>
+                </div>
+                <nav className="p-4">
+                    <ul className="space-y-2">
+                        {items.map((item, index) => (
+                            <li key={index}>
+                                <button
+                                    onClick={() => onPageChange(item.id)}
+                                    className={`w-full text-left px-4 py-2 rounded-lg transition-colors duration-200 ${
+                                        activePage === item.id
+                                            ? 'bg-green-100 text-green-700 font-medium'
+                                            : 'text-gray-600 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    {item.name}
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </nav>
+            </div>
+        );
+
+        // Main Application Component
+        const App = () => {
+            const [currentUser, setCurrentUser] = useState(null);
+            const [currentPage, setCurrentPage] = useState('');
+            const [showCreateAccount, setShowCreateAccount] = useState(false);
+
+            useEffect(() => {
+                const user = storage.getUser();
+                if (user) {
+                    setCurrentUser(user);
+                    setCurrentPage(user.isAdmin ? 'dashboard' : 'home');
+                }
+            }, []);
+
+            const handleLogin = (user) => {
+                setCurrentUser(user);
+                setCurrentPage(user.isAdmin ? 'dashboard' : 'home');
+            };
+
+            const handleLogout = () => {
+                storage.setUser(null);
+                setCurrentUser(null);
+                setCurrentPage('');
+            };
+
+            const clientMenuItems = [
+                { id: 'home', name: 'Home' },
+                { id: 'scan', name: 'Scan Plant' },
+                { id: 'compost', name: 'Calculate Compost' },
+                { id: 'shop', name: 'Shop' },
+                { id: 'appointments', name: 'Appointments' },
+                { id: 'diagnostics', name: 'Diagnostics' },
+                { id: 'profile', name: 'Profile' },
+                { id: 'notifications', name: 'Notifications' },
+                { id: 'assistance', name: 'Assistance' }
+            ];
+
+            const adminMenuItems = [
+                { id: 'dashboard', name: 'Dashboard' },
+                { id: 'users', name: 'Users' },
+                { id: 'products', name: 'Products & Shop' },
+                { id: 'compost-calc', name: 'Compost Calculations' },
+                { id: 'ai-diagnostics', name: 'AI Diagnostics' },
+                { id: 'appointments-admin', name: 'Appointments & Gardeners' },
+                { id: 'orders', name: 'Orders & Payments' },
+                { id: 'statistics', name: 'Statistics & Reporting' },
+                { id: 'pages', name: 'Pages & Content' },
+                { id: 'settings', name: 'Settings & Security' }
+            ];
+
+            const renderPage = () => {
+                if (!currentUser) return null;
+
+                const pageComponents = {
+                    // Client pages
+                    'home': ClientHome,
+                    'scan': ScanPlant,
+                    'compost': CalculateCompost,
+                    'shop': Shop,
+                    'appointments': Appointments,
+                    'diagnostics': Diagnostics,
+                    'profile': Profile,
+                    'notifications': Notifications,
+                    'assistance': Assistance,
+                    // Admin pages
+                    'dashboard': AdminDashboard,
+                    'users': AdminUsers,
+                    'products': AdminProducts,
+                    'compost-calc': AdminCompost,
+                    'ai-diagnostics': AdminDiagnostics,
+                    'appointments-admin': AdminAppointments,
+                    'orders': AdminOrders,
+                    'statistics': AdminStatistics,
+                    'pages': AdminPages,
+                    'settings': AdminSettings
+                };
+
+                const PageComponent = pageComponents[currentPage];
+                return PageComponent ? <PageComponent /> : <div>Page not found</div>;
+            };
+
+            if (!currentUser) {
+                return showCreateAccount ? (
+                    <CreateAccountPage onBack={() => setShowCreateAccount(false)} />
+                ) : (
+                    <LoginPage
+                        onLogin={handleLogin}
+                        onShowCreateAccount={() => setShowCreateAccount(true)}
+                    />
+                );
+            }
+
+            return (
+                <div className="flex bg-gray-50 min-h-screen">
+                    <Sidebar
+                        items={currentUser.isAdmin ? adminMenuItems : clientMenuItems}
+                        activePage={currentPage}
+                        onPageChange={setCurrentPage}
+                        userType={currentUser.isAdmin ? 'admin' : 'client'}
+                    />
+                    <div className="flex-1 flex flex-col">
+                        <header className="bg-white shadow-sm border-b border-gray-200 p-4">
+                            <div className="flex justify-between items-center">
+                                <h1 className="text-lg font-semibold text-gray-800">
+                                    Welcome, {currentUser.username.replace('admin_', '')}
+                                </h1>
+                                <button
+                                    onClick={handleLogout}
+                                    className="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-md transition-all duration-200 hover:scale-105 transform"
+                                >
+                                    Logout
+                                </button>
+                            </div>
+                        </header>
+                        <main className="flex-1 p-6">
+                            {renderPage()}
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        // Render the application
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
