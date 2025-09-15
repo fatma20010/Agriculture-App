@@ -510,7 +510,7 @@ const AuthExample = () => {
   return (
     <div className="min-h-screen bg-gray-100 py-12 px-4">
       <h1 className="text-3xl font-bold text-center text-green-800 mb-8">
-        Plant Health Analysis with Secure Authentication
+        Terra Verra Analysis with Secure Authentication
       </h1>
       {isLoggedIn ? renderUserDashboard() : renderAuthForms()}
     </div>

@@ -25,10 +25,10 @@ const Index = () => {
   // Shop states
   const [cart, setCart] = useState([]);
   const [products] = useState([
-    { id: 1, name: 'Organic Compost', price: 25, category: 'Compost' },
-    { id: 2, name: 'Plant Fertilizer', price: 15, category: 'Fertilizer' },
-    { id: 3, name: 'Garden Tools Set', price: 45, category: 'Tools' },
-    { id: 4, name: 'Indoor Plants', price: 20, category: 'Plants' }
+    { id: 1, name: 'Organic Compost', price: 25, category: 'Compost', currency: 'TND' },
+    { id: 2, name: 'Plant Fertilizer', price: 15, category: 'Fertilizer', currency: 'TND' },
+    { id: 3, name: 'Garden Tools Set', price: 45, category: 'Tools', currency: 'TND' },
+    { id: 4, name: 'Indoor Plants', price: 20, category: 'Plants', currency: 'TND' }
   ]);
 
   useEffect(() => {
@@ -624,7 +624,7 @@ const Index = () => {
     return (
       <div className="w-64 bg-green-800 text-white h-screen fixed left-0 top-0 overflow-y-auto">
         <div className="p-4">
-          <h1 className="text-xl font-bold mb-6">Plant Health App</h1>
+          <h1 className="text-xl font-bold mb-6">Terra Verra</h1>
           <nav className="space-y-2">
             {menuItems.map((item) => (
               <button
@@ -657,7 +657,7 @@ const Index = () => {
       case 'home':
         return (
           <div className="animate-fade-in">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Welcome to Plant Health Dashboard</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Welcome to Terra Verra Dashboard</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Recent Analyses</h3>
@@ -671,6 +671,27 @@ const Index = () => {
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Cart Items</h3>
                 <p className="text-gray-600">{cart.length} items in cart</p>
               </div>
+            </div>
+          </div>
+        );
+      case 'shop':
+        return (
+          <div className="animate-fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Shop</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {products.map((product) => (
+                <div key={product.id} className="bg-white p-6 rounded-lg shadow-md flex flex-col items-center">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">{product.name}</h3>
+                  <p className="text-green-600 font-bold text-xl">{product.price} TND</p>
+                  <p className="text-gray-500 mb-4">{product.category}</p>
+                  <button
+                    onClick={() => setCart([...cart, product])}
+                    className="mt-auto bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg font-semibold transition-all duration-200 hover:scale-105 transform"
+                  >
+                    Add to Cart
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         );
